@@ -1,16 +1,19 @@
 blueprint:
-  name: Frigate Notifications (with Audio Event Links)
+  name: Frigate Notifications (with Audio + Groups + Event Links)
   description: >
     Sends notifications from Frigate for detected objects and audio alerts.
-    Includes snapshots and links directly to the Frigate event video.
+    Includes snapshots, links to the Frigate event video, and supports
+    sending to individual devices or notification groups.
   domain: automation
   input:
-    notify_device:
-      name: Device to notify
-      description: The device that will receive the notifications
+    notify_target:
+      name: Notify target
+      description: >
+        Pick a device (mobile_app) OR a notify.* service (group).
       selector:
-        device:
-          integration: mobile_app
+        target:
+          entity:
+            domain: notify
     camera:
       name: Camera
       description: The camera entity id to monitor
@@ -50,10 +53,7 @@ variables:
     {% else %}
       {{ trigger.payload_json['after']['thumbnail'] | default('') }}
     {% endif %}
-  # Notify service based on selected device
-  notify_service: >
-    notify.mobile_app_{{ device_attr(input.notify_device, 'name') | lower | replace(' ', '_') }}
-  # Frigate event deep link (works for both audio + object events)
+  # Deep link into HA Frigate event (works for audio + object)
   ha_url: >
     {{ 'homeassistant://navigate/lovelace/frigate/event/' ~ event_id if event_id else '' }}
 
@@ -62,7 +62,7 @@ action:
       # Handle Audio events
       - conditions: "{{ event_type == 'audio' }}"
         sequence:
-          - service: "{{ notify_service }}"
+          - service: "{{ notify_target.entity_id }}"
             data:
               title: "🔊 Frigate Audio Alert"
               message: "Audio alert detected on {{ camera }}"
@@ -74,7 +74,7 @@ action:
       # Handle Object detection events
       - conditions: "{{ event_type == 'end' }}"
         sequence:
-          - service: "{{ notify_service }}"
+          - service: "{{ notify_target.entity_id }}"
             data:
               title: "🚨 Frigate Alert"
               message: "{{ label | title }} detected on {{ camera }}"
