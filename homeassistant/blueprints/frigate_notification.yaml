@@ -1,0 +1,85 @@
+blueprint:
+  name: Frigate Notifications (with Audio Event Links)
+  description: >
+    Sends notifications from Frigate for detected objects and audio alerts.
+    Includes snapshots and links directly to the Frigate event video.
+  domain: automation
+  input:
+    notify_device:
+      name: Device to notify
+      description: The device that will receive the notifications
+      selector:
+        device:
+          integration: mobile_app
+    camera:
+      name: Camera
+      description: The camera entity id to monitor
+      selector:
+        entity:
+          domain: camera
+
+mode: queued
+max: 10
+
+trigger:
+  # Object detection "end" events
+  - platform: mqtt
+    topic: frigate/events
+    value_template: "{{ value_json['type'] }}"
+    payload: "end"
+
+  # Audio detection events
+  - platform: mqtt
+    topic: frigate/events
+    value_template: "{{ value_json['type'] }}"
+    payload: "audio"
+
+variables:
+  event_type: "{{ trigger.payload_json['type'] }}"
+  camera: "{{ trigger.payload_json['camera'] | default('unknown') }}"
+  event_id: "{{ trigger.payload_json['after']['id'] | default('') }}"
+  label: >
+    {% if event_type == 'audio' %}
+      Audio Alert
+    {% else %}
+      {{ trigger.payload_json['after']['label'] | default('motion') }}
+    {% endif %}
+  snapshot_url: >
+    {% if event_type == 'audio' %}
+      {{ '' }}
+    {% else %}
+      {{ trigger.payload_json['after']['thumbnail'] | default('') }}
+    {% endif %}
+  # Notify service based on selected device
+  notify_service: >
+    notify.mobile_app_{{ device_attr(input.notify_device, 'name') | lower | replace(' ', '_') }}
+  # Frigate event deep link (works for both audio + object events)
+  ha_url: >
+    {{ 'homeassistant://navigate/lovelace/frigate/event/' ~ event_id if event_id else '' }}
+
+action:
+  - choose:
+      # Handle Audio events
+      - conditions: "{{ event_type == 'audio' }}"
+        sequence:
+          - service: "{{ notify_service }}"
+            data:
+              title: "🔊 Frigate Audio Alert"
+              message: "Audio alert detected on {{ camera }}"
+              data:
+                tag: "frigate-audio-{{ camera }}"
+                sticky: "true"
+                clickAction: "{{ ha_url }}"
+
+      # Handle Object detection events
+      - conditions: "{{ event_type == 'end' }}"
+        sequence:
+          - service: "{{ notify_service }}"
+            data:
+              title: "🚨 Frigate Alert"
+              message: "{{ label | title }} detected on {{ camera }}"
+              data:
+                image: "{{ snapshot_url }}"
+                tag: "frigate-{{ camera }}"
+                sticky: "true"
+                clickAction: "{{ ha_url }}"
