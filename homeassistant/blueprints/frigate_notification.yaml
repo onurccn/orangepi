@@ -1,10 +1,9 @@
 blueprint:
-  name: Frigate Notifications (Audio + Dynamic Notify + Custom Topic)
+  name: Frigate Notifications (Objects + Audio + Preview GIF)
   description: >
     Sends notifications from Frigate for detected objects and audio alerts.
-    Includes snapshots, links to the Frigate event video, and allows you
-    to enter any notify.* service name (device, group, or integration).
-    Also supports customizing the MQTT topic (default: frigate/events).
+    Includes GIF previews, deep links to event video, and works with
+    any notify.* service (device, group, etc.).
   domain: automation
   input:
     notify_service:
@@ -22,6 +21,19 @@ blueprint:
       default: "frigate/events"
       selector:
         text: {}
+    base_url:
+      name: Home Assistant Base URL
+      description: >
+        The external URL of your Home Assistant instance (e.g. https://ha.example.com).
+      selector:
+        text: {}
+    client_id:
+      name: Frigate Client ID
+      description: >
+        The Frigate instance name (default: frigate).
+      default: "frigate"
+      selector:
+        text: {}
     camera:
       name: Camera
       description: The camera entity id to monitor
@@ -33,54 +45,45 @@ mode: queued
 max: 10
 
 trigger:
-  # Object detection "end" events
+  # Only need to listen for "end" events
   - platform: mqtt
     topic: !input mqtt_topic
     value_template: "{{ value_json['type'] }}"
     payload: "end"
 
-  # Audio detection events
-  - platform: mqtt
-    topic: !input mqtt_topic
-    value_template: "{{ value_json['type'] }}"
-    payload: "audio"
-
 variables:
   event_type: "{{ trigger.payload_json['type'] }}"
-  camera: "{{ trigger.payload_json['camera'] | default('unknown') }}"
+  camera: "{{ trigger.payload_json['after']['camera'] | default('unknown') }}"
   event_id: "{{ trigger.payload_json['after']['id'] | default('') }}"
+  audio: "{{ trigger.payload_json['after']['data']['audio'] | default([]) }}"
   label: >
-    {% if event_type == 'audio' %}
-      Audio Alert
+    {% if audio | length > 0 %}
+      Audio: {{ audio | join(', ') }}
     {% else %}
       {{ trigger.payload_json['after']['label'] | default('motion') }}
     {% endif %}
   snapshot_url: >
-    {% if event_type == 'audio' %}
-      {{ '' }}
-    {% else %}
-      {{ trigger.payload_json['after']['thumbnail'] | default('') }}
-    {% endif %}
-  # Frigate event deep link (works for audio + object)
+    {{ !input base_url }}/api/frigate/{{ !input client_id }}/notifications/{{ event_id }}/review_preview.gif
   ha_url: >
     {{ 'homeassistant://navigate/lovelace/frigate/event/' ~ event_id if event_id else '' }}
 
 action:
   - choose:
       # Handle Audio events
-      - conditions: "{{ event_type == 'audio' }}"
+      - conditions: "{{ audio | length > 0 }}"
         sequence:
           - service: !input notify_service
             data:
               title: "🔊 Frigate Audio Alert"
-              message: "Audio alert detected on {{ camera }}"
+              message: "Audio detected ({{ audio | join(', ') }}) on {{ camera }}"
               data:
                 tag: "frigate-audio-{{ camera }}"
                 sticky: "true"
+                image: "{{ snapshot_url }}"
                 clickAction: "{{ ha_url }}"
 
-      # Handle Object detection events
-      - conditions: "{{ event_type == 'end' }}"
+      # Handle Object detection events (if no audio)
+      - conditions: "{{ audio | length == 0 }}"
         sequence:
           - service: !input notify_service
             data:
