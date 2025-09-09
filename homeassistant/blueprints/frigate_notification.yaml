@@ -96,9 +96,9 @@ action:
               message: "Audio detected ({{ audio | join(', ') }}) on {{ camera }}"
               data:
                 tag: "frigate-audio-{{ camera }}"
-                sticky: "true"
                 image: "{{ snapshot_url }}"
-                clickAction: "{{ ha_url }}"
+                clickAction: "/ccab4aaf_frigate/dashboard"
+                url: "/ccab4aaf_frigate/dashboard"
 
       # Handle Object detection events (if no audio)
       - conditions: "{{ audio | length == 0 }}"
@@ -110,5 +110,5 @@ action:
               data:
                 image: "{{ snapshot_url }}"
                 tag: "frigate-{{ camera }}"
-                sticky: "true"
-                clickAction: "{{ ha_url }}"
+                clickAction: "/ccab4aaf_frigate/dashboard"
+                url: "/ccab4aaf_frigate/dashboard"
