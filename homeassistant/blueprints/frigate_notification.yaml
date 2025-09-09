@@ -99,7 +99,7 @@ action:
                 image: "{{ snapshot_url }}"
                 clickAction: "/ccab4aaf_frigate/dashboard"
                 url: "/ccab4aaf_frigate/dashboard"
-                group: "frigate-audio-alert-{{ camera }}-{{ event_id }}"
+                group: "frigate-audio-alert-{{ camera }}"
 
       # Handle Object detection events (if no audio)
       - conditions: "{{ audio | length == 0 }}"
@@ -113,4 +113,4 @@ action:
                 tag: "frigate-{{ camera }}-{{ event_id }}"
                 clickAction: "/ccab4aaf_frigate/dashboard"
                 url: "/ccab4aaf_frigate/dashboard"
-                group: "frigate-object-alert-{{ camera }}-{{ event_id }}"
+                group: "frigate-object-alert-{{ camera }}"
