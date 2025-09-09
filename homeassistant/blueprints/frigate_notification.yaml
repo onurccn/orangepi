@@ -51,4 +51,43 @@ variables:
   event_id: "{{ trigger.payload_json['after']['id'] | default('') }}"
   label: >
     {% if event_type == 'audio' %}
-      Audio Aler
+      Audio Alert
+    {% else %}
+      {{ trigger.payload_json['after']['label'] | default('motion') }}
+    {% endif %}
+  snapshot_url: >
+    {% if event_type == 'audio' %}
+      {{ '' }}
+    {% else %}
+      {{ trigger.payload_json['after']['thumbnail'] | default('') }}
+    {% endif %}
+  # Frigate event deep link (works for audio + object)
+  ha_url: >
+    {{ 'homeassistant://navigate/lovelace/frigate/event/' ~ event_id if event_id else '' }}
+
+action:
+  - choose:
+      # Handle Audio events
+      - conditions: "{{ event_type == 'audio' }}"
+        sequence:
+          - service: !input notify_service
+            data:
+              title: "🔊 Frigate Audio Alert"
+              message: "Audio alert detected on {{ camera }}"
+              data:
+                tag: "frigate-audio-{{ camera }}"
+                sticky: "true"
+                clickAction: "{{ ha_url }}"
+
+      # Handle Object detection events
+      - conditions: "{{ event_type == 'end' }}"
+        sequence:
+          - service: !input notify_service
+            data:
+              title: "🚨 Frigate Alert"
+              message: "{{ label | title }} detected on {{ camera }}"
+              data:
+                image: "{{ snapshot_url }}"
+                tag: "frigate-{{ camera }}"
+                sticky: "true"
+                clickAction: "{{ ha_url }}"
