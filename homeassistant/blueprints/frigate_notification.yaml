@@ -24,7 +24,7 @@ blueprint:
     base_url:
       name: Home Assistant Base URL
       description: >
-        Optional. If left empty, will use Home Assistant's configured external URL.
+        Optional. If left empty, will use Home Assistant's configured external or internal URL.
       default: ""
       selector:
         text: {}
@@ -53,11 +53,21 @@ trigger:
     payload: "end"
 
 variables:
-  # Pull base_url from input or fallback to HA external_url
+  # Blueprint inputs
   input_base_url: !input base_url
-  resolved_base_url: >
-    {{ input_base_url if input_base_url != '' else hass.config.external_url }}
+  client_id: !input client_id
 
+  # Choose base_url from input, else fallback to HA external_url, then internal_url
+  resolved_base_url: >
+    {% if input_base_url != '' %}
+      {{ input_base_url }}
+    {% elif hass.config.external_url is defined and hass.config.external_url != '' %}
+      {{ hass.config.external_url }}
+    {% else %}
+      {{ hass.config.internal_url }}
+    {% endif %}
+
+  # Event data
   event_type: "{{ trigger.payload_json['type'] }}"
   camera: "{{ trigger.payload_json['after']['camera'] | default('unknown') }}"
   event_id: "{{ trigger.payload_json['after']['id'] | default('') }}"
@@ -68,8 +78,10 @@ variables:
     {% else %}
       {{ trigger.payload_json['after']['label'] | default('motion') }}
     {% endif %}
+
+  # Media URLs
   snapshot_url: >
-    {{ resolved_base_url }}/api/frigate/{{ !input client_id }}/notifications/{{ event_id }}/review_preview.gif
+    {{ resolved_base_url }}/api/frigate/{{ client_id }}/notifications/{{ event_id }}/review_preview.gif
   ha_url: >
     {{ 'homeassistant://navigate/lovelace/frigate/event/' ~ event_id if event_id else '' }}
 
